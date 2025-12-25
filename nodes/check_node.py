@@ -6,6 +6,7 @@
 
 import logging
 import json
+import re
 from typing import Tuple
 
 from langchain_openai import ChatOpenAI
@@ -47,8 +48,16 @@ def check_completeness_node(state: AgentState, config: Config) -> AgentState:
     # 创建 LLM 客户端
     llm = _create_llm(config)
     
+    # 初始化或获取 LLM 使用量统计
+    llm_usage = state.get("llm_usage", {
+        "total_prompt_tokens": 0,
+        "total_completion_tokens": 0,
+        "total_tokens": 0,
+        "calls": []
+    })
+    
     # 评估完整性
-    is_complete, confidence, missing_parts, suggested_tools = _evaluate_completeness(
+    is_complete, confidence, missing_parts, suggested_tools, usage = _evaluate_completeness(
         llm,
         state["current_document"],
         state["high_level_info"],
@@ -56,10 +65,24 @@ def check_completeness_node(state: AgentState, config: Config) -> AgentState:
         config
     )
     
+    # 记录 token 使用量
+    if usage:
+        llm_usage["total_prompt_tokens"] += usage.get("prompt_tokens", 0)
+        llm_usage["total_completion_tokens"] += usage.get("completion_tokens", 0)
+        llm_usage["total_tokens"] += usage.get("total_tokens", 0)
+        llm_usage["calls"].append({
+            "iteration": state["iteration_count"],
+            "type": "check_completeness",
+            "prompt_tokens": usage.get("prompt_tokens", 0),
+            "completion_tokens": usage.get("completion_tokens", 0),
+            "total_tokens": usage.get("total_tokens", 0)
+        })
+    
     # 更新状态
     state["is_complete"] = is_complete
     state["confidence_score"] = confidence
     state["missing_parts"] = missing_parts
+    state["llm_usage"] = llm_usage
     
     if is_complete:
         state["status"] = "completed"
@@ -89,18 +112,31 @@ def _create_llm(config: Config) -> ChatOpenAI:
     return ChatOpenAI(**kwargs)
 
 
+def _extract_usage(response) -> dict:
+    """从响应中提取 token 使用量"""
+    usage = {}
+    if hasattr(response, 'response_metadata') and response.response_metadata:
+        token_usage = response.response_metadata.get('token_usage', {})
+        usage = {
+            "prompt_tokens": token_usage.get('prompt_tokens', 0),
+            "completion_tokens": token_usage.get('completion_tokens', 0),
+            "total_tokens": token_usage.get('total_tokens', 0)
+        }
+    return usage
+
+
 def _evaluate_completeness(
     llm: ChatOpenAI,
     document: str,
     high_level_info: str,
     iteration: int,
     config: Config
-) -> Tuple[bool, float, list[str], list[dict]]:
+) -> Tuple[bool, float, list[str], list[dict], dict]:
     """
     评估文档完整性
     
     Returns:
-        (is_complete, confidence_score, missing_parts, suggested_tools)
+        (is_complete, confidence_score, missing_parts, suggested_tools, usage)
     """
     messages = [
         SystemMessage(content="你是一个需求文档质量评估专家。请严格按照 JSON 格式返回评估结果。"),
@@ -113,6 +149,7 @@ def _evaluate_completeness(
     ]
     
     response = llm.invoke(messages)
+    usage = _extract_usage(response)
     
     # 解析响应
     try:
@@ -120,7 +157,6 @@ def _evaluate_completeness(
         content = response.content
         
         # 查找 JSON 块
-        import re
         json_match = re.search(r'\{[\s\S]*\}', content)
         
         if json_match:
@@ -139,10 +175,11 @@ def _evaluate_completeness(
             result.get("is_complete", False),
             result.get("confidence_score", 0.5),
             result.get("missing_parts", []),
-            result.get("suggested_tools", [])
+            result.get("suggested_tools", []),
+            usage
         )
     
     except json.JSONDecodeError as e:
         logger.error(f"解析评估结果失败: {e}")
         # 返回保守估计
-        return (False, 0.5, ["无法评估"], [])
+        return (False, 0.5, ["无法评估"], [], usage)

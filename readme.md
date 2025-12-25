@@ -1,61 +1,157 @@
 # Repo2Doc Agent
 
-基于 LangGraph 的 Agent 驱动代码库需求文档生成工具。
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 
-## 概述
+**🔄 [中文文档](./readme.zh.md)**
 
-Repo2Doc Agent 采用 **Agent 主动探索**方案，与传统增量式方案不同：
+An agent-driven code repository requirements document generator based on LangGraph. Unlike traditional incremental approaches, this tool uses an **active exploration** strategy.
 
-- Agent 自主调用工具探索代码库
-- 自主判断文档完整性
-- 迭代更新直到满意
+## ✨ Features
 
-## 安装
+- 🤖 **Agent-Driven Exploration** - Autonomously explores codebase using tools
+- 🔄 **Iterative Refinement** - Self-assesses document completeness and iterates
+- 🛠️ **Rich Tool Set** - File reading, code analysis, code search capabilities
+- 📊 **Confidence Scoring** - Provides confidence score for generated documents
+- 📈 **Detailed Statistics** - Tracks token usage and tool call metrics
+
+## 🏗️ How It Works
+
+```
+┌─────────────────────┐
+│   Initialize        │  Collect README, directory tree, config files
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│   Generate Doc      │◄──────┐  Generate/update requirements document
+└──────────┬──────────┘       │
+           │                  │
+           ▼                  │
+┌─────────────────────┐       │
+│ Check Completeness  │       │  LLM evaluates document quality
+└──────────┬──────────┘       │
+           │                  │
+       Complete?              │
+      /        \              │
+    Yes         No            │
+     │           │            │
+     ▼           ▼            │
+┌─────────┐  ┌─────────────┐  │
+│  Save   │  │Execute Tools│──┘  Call tools to gather more info
+└─────────┘  └─────────────┘
+```
+
+## 🚀 Quick Start
+
+### Installation
 
 ```bash
 cd repo2docAgent
 uv sync
 ```
 
-## 配置
+### Configuration
 
-1. 复制环境变量示例文件：
-
+1. Create `.env` file:
 ```bash
 cp .env.example .env
 ```
 
-2. 编辑 `.env`，设置 API 密钥：
-
+2. Set your API key:
 ```bash
 OPENAI_API_KEY="your-api-key-here"
 ```
 
-3. 可选：编辑 `config.yaml` 自定义配置
+3. (Optional) Customize `config.yaml`:
+```yaml
+agent:
+  max_iterations: 10
+  max_tool_calls_per_iteration: 5
 
-## 使用
+llm:
+  model: "gpt-4o"
+  temperature: 0.3
+```
+
+### Usage
 
 ```bash
-# 基本用法
+# Basic usage
 uv run python main.py /path/to/repo
 
-# 详细模式
+# Verbose mode (shows all LLM calls and tool executions)
 uv run python main.py /path/to/repo -v
 
-# 指定配置
-uv run python main.py /path/to/repo -c config.yaml
+# Limit iterations
+uv run python main.py /path/to/repo -m 5
 ```
 
-## 输出
+## 🛠️ Available Tools
 
-运行后会在仓库目录下生成：
+The agent can use the following tools to explore the codebase:
+
+| Tool | Description |
+|------|-------------|
+| `get_file_content` | Read file contents |
+| `get_directory_tree` | Get directory structure |
+| `list_files_by_extension` | List files by extension |
+| `get_file_outline` | Get file outline (classes, functions) |
+| `get_function_info` | Get function details |
+| `get_class_info` | Get class details |
+| `search_code` | Search code across repository |
+| `search_imports` | Search import statements |
+
+## 📁 Output Structure
 
 ```
-repo2doc-output/
-├── requirements.md           # 最终需求文档
-└── intermediate/             # 中间结果（如果启用）
+repo2docAgent-output/
+├── requirements.md              # Final requirements document
+├── {timestamp}_requirements.md  # Timestamped backup
+├── {timestamp}_report.md        # Exploration report
+├── {timestamp}_stats.json       # Token usage & tool statistics
+└── intermediate/                # Document versions (if enabled)
+    ├── version_1.md
+    ├── version_2.md
+    └── ...
 ```
 
-## 许可证
+## 📂 Project Structure
+
+```
+repo2docAgent/
+├── main.py              # CLI entry point
+├── agent_workflow.py    # LangGraph agent workflow
+├── state.py             # State management
+├── config_loader.py     # Configuration loader
+├── nodes/               # Workflow nodes
+│   ├── init_node.py     # Initialization
+│   ├── doc_node.py      # Document generation
+│   ├── check_node.py    # Completeness check
+│   ├── tool_node.py     # Tool execution
+│   └── save_node.py     # Output saving
+├── tools/               # Agent tools
+│   ├── file_tools.py    # File operations
+│   ├── code_tools.py    # Code analysis
+│   └── search_tools.py  # Code search
+└── prompts/             # Prompt templates
+    └── agent_prompts.py
+```
+
+## 🆚 Comparison: Repo2Doc vs Repo2Doc Agent
+
+| Aspect | Repo2Doc | Repo2Doc Agent |
+|--------|----------|----------------|
+| **Approach** | Incremental chunking | Agent exploration |
+| **File Access** | All files upfront | On-demand via tools |
+| **Iterations** | One pass per chunk | Multiple refinement cycles |
+| **Flexibility** | Pre-planned | Adaptive |
+| **Best For** | Smaller codebases | Complex projects |
+
+## 📄 License
 
 MIT License
+
+---
+
+**Related Project**: [Repo2Doc](../repo2doc) - The incremental chunking variant.

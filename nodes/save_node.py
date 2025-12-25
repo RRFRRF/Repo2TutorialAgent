@@ -61,6 +61,14 @@ def save_output_node(state: AgentState, config: Config) -> AgentState:
             f.write(report)
         logger.info(f"报告已保存: {report_path}")
         
+        # 保存 JSON 统计信息
+        stats = _generate_stats_json(state, config, timestamp)
+        stats_path = output_dir / f"{timestamp}_stats.json"
+        import json
+        with open(stats_path, "w", encoding="utf-8") as f:
+            json.dump(stats, f, ensure_ascii=False, indent=2)
+        logger.info(f"统计信息已保存: {stats_path}")
+        
         # 保存中间结果（如果启用）
         if config.output.save_intermediate:
             intermediate_dir = output_dir / "intermediate"
@@ -128,3 +136,67 @@ def _generate_report(state: AgentState, config: Config) -> str:
     lines.append(f"- 每次最大工具调用: {config.agent.max_tool_calls_per_iteration}")
     
     return "\n".join(lines)
+
+
+def _generate_stats_json(state: AgentState, config: Config, timestamp: str) -> dict:
+    """
+    生成 JSON 格式的统计信息
+    
+    Args:
+        state: 当前状态
+        config: 配置对象
+        timestamp: 时间戳
+    
+    Returns:
+        统计信息字典
+    """
+    exploration_history = state.get("exploration_history", [])
+    llm_usage = state.get("llm_usage", {})
+    
+    # 统计工具调用
+    total_tool_calls = 0
+    successful_tool_calls = 0
+    tool_usage = {}
+    
+    for record in exploration_history:
+        for tc in record.tool_calls:
+            total_tool_calls += 1
+            if tc.success:
+                successful_tool_calls += 1
+            tool_usage[tc.tool_name] = tool_usage.get(tc.tool_name, 0) + 1
+    
+    return {
+        "meta": {
+            "timestamp": timestamp,
+            "generated_at": datetime.now().isoformat(),
+            "repo_path": state["repo_path"],
+            "tool": "repo2docAgent",
+            "version": "0.1.0"
+        },
+        "execution": {
+            "total_iterations": state.get("iteration_count", 0),
+            "llm_calls": len(llm_usage.get("calls", [])),
+            "is_complete": state.get("is_complete", False),
+        },
+        "llm_tokens": {
+            "total_prompt_tokens": llm_usage.get("total_prompt_tokens", 0),
+            "total_completion_tokens": llm_usage.get("total_completion_tokens", 0),
+            "total_tokens": llm_usage.get("total_tokens", 0),
+            "calls": llm_usage.get("calls", []),
+        },
+        "files": {
+            "tool_calls": total_tool_calls,
+            "successful_calls": successful_tool_calls,
+            "by_tool": tool_usage,
+        },
+        "document": {
+            "final_length": len(state.get("current_document", "")),
+            "versions_count": len(state.get("document_versions", [])),
+            "confidence_score": state.get("confidence_score", 0),
+        },
+        "config": {
+            "model": config.llm.model,
+            "temperature": config.llm.temperature,
+            "max_iterations": config.agent.max_iterations,
+        }
+    }

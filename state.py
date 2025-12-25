@@ -65,6 +65,9 @@ class AgentState(TypedDict):
     # 状态信息
     status: str                                 # 当前状态
     error: Optional[str]                        # 错误信息
+    
+    # LLM 使用量统计（真实值）
+    llm_usage: dict                             # LLM token 使用量
 
 
 def create_initial_state(
@@ -102,4 +105,10 @@ def create_initial_state(
         max_iterations=max_iterations,
         status="initialized",
         error=None,
+        llm_usage={
+            "total_prompt_tokens": 0,
+            "total_completion_tokens": 0,
+            "total_tokens": 0,
+            "calls": []
+        },
     )

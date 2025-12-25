@@ -5,7 +5,7 @@
 """
 
 import logging
-from typing import Optional
+from typing import Optional, Tuple
 
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
@@ -42,32 +42,57 @@ def generate_doc_node(state: AgentState, config: Config) -> AgentState:
     # 创建 LLM 客户端
     llm = _create_llm(config)
     
+    # 初始化或获取 LLM 使用量统计
+    llm_usage = state.get("llm_usage", {
+        "total_prompt_tokens": 0,
+        "total_completion_tokens": 0,
+        "total_tokens": 0,
+        "calls": []
+    })
+    
     # 根据是否是首次生成选择不同的策略
     if state["iteration_count"] == 0:
         # 首次生成
-        new_document = _generate_initial_doc(
+        new_document, usage = _generate_initial_doc(
             llm, 
             state["high_level_info"],
             config
         )
+        call_type = "initial_doc"
     else:
         # 增量更新
-        new_document = _update_document(
+        new_document, usage = _update_document(
             llm,
             state["current_document"],
             state["current_tool_results"],
             state["missing_parts"],
             config
         )
+        call_type = "update_doc"
+    
+    # 记录 token 使用量
+    if usage:
+        llm_usage["total_prompt_tokens"] += usage.get("prompt_tokens", 0)
+        llm_usage["total_completion_tokens"] += usage.get("completion_tokens", 0)
+        llm_usage["total_tokens"] += usage.get("total_tokens", 0)
+        llm_usage["calls"].append({
+            "iteration": state["iteration_count"] + 1,
+            "type": call_type,
+            "prompt_tokens": usage.get("prompt_tokens", 0),
+            "completion_tokens": usage.get("completion_tokens", 0),
+            "total_tokens": usage.get("total_tokens", 0)
+        })
     
     # 更新状态
     state["current_document"] = new_document
     state["document_versions"].append(new_document)
     state["iteration_count"] += 1
     state["current_tool_results"] = ""  # 清空工具结果
+    state["llm_usage"] = llm_usage
     state["status"] = "doc_generated"
     
     logger.info(f"文档生成完成，长度: {len(new_document)} 字符")
+    logger.info(f"本次 LLM token: prompt={usage.get('prompt_tokens', 0)}, completion={usage.get('completion_tokens', 0)}")
     
     return state
 
@@ -88,11 +113,24 @@ def _create_llm(config: Config) -> ChatOpenAI:
     return ChatOpenAI(**kwargs)
 
 
+def _extract_usage(response) -> dict:
+    """从响应中提取 token 使用量"""
+    usage = {}
+    if hasattr(response, 'response_metadata') and response.response_metadata:
+        token_usage = response.response_metadata.get('token_usage', {})
+        usage = {
+            "prompt_tokens": token_usage.get('prompt_tokens', 0),
+            "completion_tokens": token_usage.get('completion_tokens', 0),
+            "total_tokens": token_usage.get('total_tokens', 0)
+        }
+    return usage
+
+
 def _generate_initial_doc(
     llm: ChatOpenAI, 
     high_level_info: str,
     config: Config
-) -> str:
+) -> Tuple[str, dict]:
     """生成初版文档"""
     messages = [
         SystemMessage(content=SYSTEM_PROMPT),
@@ -102,7 +140,9 @@ def _generate_initial_doc(
     ]
     
     response = llm.invoke(messages)
-    return response.content
+    usage = _extract_usage(response)
+    
+    return response.content, usage
 
 
 def _update_document(
@@ -111,7 +151,7 @@ def _update_document(
     tool_results: str,
     missing_parts: list[str],
     config: Config
-) -> str:
+) -> Tuple[str, dict]:
     """更新文档"""
     missing_str = "\n".join(f"- {part}" for part in missing_parts) if missing_parts else "无"
     
@@ -125,4 +165,6 @@ def _update_document(
     ]
     
     response = llm.invoke(messages)
-    return response.content
+    usage = _extract_usage(response)
+    
+    return response.content, usage
