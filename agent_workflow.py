@@ -178,8 +178,13 @@ class Repo2DocAgentWorkflow:
             max_iterations=self.config.agent.max_iterations
         )
         
-        # 运行工作流
-        final_state = self.graph.invoke(initial_state)
+        # 运行工作流，设置递归限制以支持多次迭代
+        # 每次迭代约2-4个节点，max_iterations为10时需要约40-80次递归
+        recursion_limit = self.config.agent.max_iterations * 10 + 20
+        final_state = self.graph.invoke(
+            initial_state,
+            {"recursion_limit": recursion_limit}
+        )
         
         # 输出结果
         if final_state.get("status") == "completed":
