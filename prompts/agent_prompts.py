@@ -106,6 +106,9 @@ UPDATE_DOC_PROMPT = """# 任务：需求文档增量更新
 - 所有之前的有效内容
 - 本次新发现的功能和实体
 - 任何必要的修正和细化
+
+## 重要提示
+请充分利用新获取的所有信息更新文档
 """
 
 # 完整性检查提示词
@@ -124,15 +127,19 @@ CHECK_COMPLETENESS_PROMPT = """# 任务：需求文档完整性评估
 - 当前迭代：第 {iteration} 次
 - 最大迭代：{max_iterations} 次
 
-## 评估维度
+## 评估标准
 
-请从以下维度评估文档完整性：
+⚠️ **重要**：为了减少不必要的迭代和 token 消耗，请遵循以下原则：
 
-1. **覆盖度**：是否涵盖了主要功能模块？
-2. **深度**：每个模块的描述是否足够详细？
-3. **准确性**：描述是否与代码一致？
-4. **数据模型**：实体定义是否完整？
-5. **业务流程**：关键流程是否已描述？
+1. **小型项目**（<50个源文件）：2-3次迭代后应判定完成
+2. **中大型项目**（50-200个源文件）：3-5次迭代后应判定完成
+
+## 完成条件（满足以下任一即可判定 is_complete = true）
+
+1. 主要功能模块已识别并描述
+2. 核心数据实体已定义
+3. 达到最大迭代次数
+4. 置信度达到0.9以上
 
 ## 输出格式
 
@@ -154,24 +161,21 @@ CHECK_COMPLETENESS_PROMPT = """# 任务：需求文档完整性评估
 }}
 ```
 
-## 完成标准
+## 关于 suggested_tools
 
-- `is_complete = true` 当且仅当：
-  - 主要功能模块已识别并描述
-  - 核心数据实体已定义
-  - 关键业务流程已说明
-  - 置信度 >= 0.8
+⚠️ **批量建议工具**：如果需要继续探索，请 **尽可能多的工具调用**（最多15个），以减少迭代次数。
 
 ## 可用工具
 
 | 工具 | 用途 | 参数 |
 |------|------|------|
-| `get_file_content` | 获取文件完整内容 | `file_path` |
-| `get_file_outline` | 获取文件大纲 | `file_path` |
-| `get_function_info` | 获取函数详情 | `file_path`, `function_name` |
-| `get_class_info` | 获取类详情 | `file_path`, `class_name` |
-| `search_code` | 搜索代码 | `query`, `file_pattern` |
-| `list_files_by_extension` | 按扩展名列出文件 | `extension` |
+| `get_file_content` | 获取文件完整内容 | `file_path`（相对于仓库根目录） |
+| `get_file_outline` | 获取文件大纲（类和函数列表） | `file_path`（相对于仓库根目录） |
+| `get_function_info` | 获取函数详情（签名、文档、源码） | `file_path`, `function_name` |
+| `get_class_info` | 获取类详情（继承、方法、属性） | `file_path`, `class_name` |
+| `search_code` | 全局搜索代码 | `query`（搜索词）, `file_pattern`（可选，如 "*.py"） |
+| `list_files_by_extension` | 按扩展名列出文件 | `extension`（如 ".java"） |
+| `search_imports` | 搜索特定模块的导入 | `module_name` |
 
 请返回 JSON 格式的评估结果。
 """
@@ -181,6 +185,8 @@ TOOL_SELECTION_PROMPT = """# 任务：智能工具选择
 
 ## 目标
 选择最有价值的工具调用，以高效补充需求文档的缺失部分。
+
+⚠️ **重要**：请一次性选择 **尽可能多的工具**（最多 {max_tools} 个），以减少迭代次数和 token 消耗。
 
 ## 当前文档摘要
 
@@ -200,22 +206,23 @@ TOOL_SELECTION_PROMPT = """# 任务：智能工具选择
 
 | 工具 | 适用场景 | 参数 |
 |------|----------|------|
-| `get_file_content(file_path)` | 需要了解完整实现逻辑 | 文件路径 |
-| `get_file_outline(file_path)` | 快速了解文件结构 | 文件路径 |
-| `get_function_info(file_path, function_name)` | 深入分析特定函数 | 文件路径, 函数名 |
-| `get_class_info(file_path, class_name)` | 分析类的属性和方法 | 文件路径, 类名 |
-| `search_code(query, file_pattern)` | 跨文件搜索特定模式 | 搜索词, 文件模式 |
-| `list_files_by_extension(extension)` | 发现特定类型的文件 | 文件扩展名 |
+| `get_file_content` | 需要了解完整实现逻辑 | `file_path`（相对于仓库根目录的路径） |
+| `get_file_outline` | 快速了解文件结构 | `file_path`（相对于仓库根目录的路径） |
+| `get_function_info` | 深入分析特定函数 | `file_path`, `function_name` |
+| `get_class_info` | 分析类的属性和方法 | `file_path`, `class_name` |
+| `search_code` | 跨文件搜索特定模式 | `query`（搜索词）, `file_pattern`（可选，如 "*.java"） |
+| `list_files_by_extension` | 发现特定类型的文件 | `extension`（文件扩展名，如 ".py"） |
+| `search_imports` | 查找特定模块的使用 | `module_name` |
 
 ## 选择策略
 
-1. **优先级**：先选能填补最大空白的工具
-2. **效率**：优先选 `get_file_outline` 了解结构，再深入具体内容
-3. **相关性**：根据缺失部分选择最相关的文件
+1. **批量选择**：一次性选择多个工具，覆盖所有缺失部分
+2. **优先级**：先选 `get_file_outline` 了解结构，再选 `get_file_content` 和 `get_class_info` 深入分析
+3. **效率优先**：优先选择能填补最大空白的工具
 
 ## 输出格式
 
-请选择最多 {max_tools} 个工具调用，以 JSON 格式返回：
+请选择 **{max_tools} 个**工具调用，以 JSON 格式返回：
 
 ```json
 {{
@@ -223,10 +230,16 @@ TOOL_SELECTION_PROMPT = """# 任务：智能工具选择
         {{
             "tool": "工具名",
             "args": {{"参数名": "参数值"}},
-            "reason": "选择此工具的理由",
-            "expected_info": "期望获取的信息"
+            "reason": "选择此工具的理由"
         }}
     ]
 }}
 ```
+
+## 参数说明
+
+- `file_path`: 使用相对于仓库根目录的路径，如 "src/main/java/App.java"
+- `extension`: 包含点号，如 ".java"、".py"、".ts"
+- `query`: 搜索关键词
+- `function_name` / `class_name`: 函数或类的名称（不含路径）
 """

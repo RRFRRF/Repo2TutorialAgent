@@ -78,13 +78,21 @@ def check_completeness_node(state: AgentState, config: Config) -> AgentState:
             "total_tokens": usage.get("total_tokens", 0)
         })
     
+    # 使用配置的置信度阈值判断是否完成
+    confidence_threshold = config.agent.confidence_threshold
+    
+    # 如果置信度达到阈值，则判定完成
+    should_complete = is_complete or (
+        confidence >= confidence_threshold
+    )
+    
     # 更新状态
-    state["is_complete"] = is_complete
+    state["is_complete"] = should_complete
     state["confidence_score"] = confidence
     state["missing_parts"] = missing_parts
     state["llm_usage"] = llm_usage
     
-    if is_complete:
+    if should_complete:
         state["status"] = "completed"
         logger.info(f"文档已完整，置信度: {confidence:.2f}")
     else:

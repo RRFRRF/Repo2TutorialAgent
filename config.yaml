@@ -2,10 +2,12 @@
 
 # Agent 配置
 agent:
-  # 最大探索迭代次数
-  max_iterations: 10
-  # 每次迭代最大工具调用数
-  max_tool_calls_per_iteration: 5
+  # 最大探索迭代次数（减少迭代以节省token）
+  max_iterations: 6
+  # 每次迭代最大工具调用数（增加以减少迭代次数）
+  max_tool_calls_per_iteration: 15
+  # 完成置信度阈值（达到此置信度即可完成）
+  confidence_threshold: 0.9
 
 # 文件筛选配置
 file_filter:

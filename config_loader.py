@@ -20,8 +20,9 @@ load_dotenv()
 
 class AgentConfig(BaseModel):
     """Agent 配置"""
-    max_iterations: int = Field(default=10, description="最大探索迭代次数")
-    max_tool_calls_per_iteration: int = Field(default=5, description="每次迭代最大工具调用数")
+    max_iterations: int = Field(default=5, description="最大探索迭代次数")
+    max_tool_calls_per_iteration: int = Field(default=10, description="每次迭代最大工具调用数")
+    confidence_threshold: float = Field(default=0.75, description="完成置信度阈值")
 
 
 class FileFilterConfig(BaseModel):
