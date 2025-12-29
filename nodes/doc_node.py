@@ -12,6 +12,7 @@ from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 
 from state import AgentState
 from config_loader import Config
+from utils.mermaid_fixer import fix_mermaid_syntax
 from prompts.agent_prompts import (
     SYSTEM_PROMPT,
     INITIAL_DOC_PROMPT,
@@ -142,7 +143,10 @@ def _generate_initial_doc(
     response = llm.invoke(messages)
     usage = _extract_usage(response)
     
-    return response.content, usage
+    # 自动修复 Mermaid 语法
+    fixed_content = fix_mermaid_syntax(response.content)
+    
+    return fixed_content, usage
 
 
 def _update_document(
@@ -167,4 +171,7 @@ def _update_document(
     response = llm.invoke(messages)
     usage = _extract_usage(response)
     
-    return response.content, usage
+    # 自动修复 Mermaid 语法
+    fixed_content = fix_mermaid_syntax(response.content)
+    
+    return fixed_content, usage

@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Repo2Doc Agent - Demo</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <!-- 头部 -->
+        <header class="header">
+            <div class="logo">
+                <span class="logo-icon">🤖</span>
+                <h1>Repo2Doc Agent</h1>
+            </div>
+            <p class="subtitle">基于 LangGraph 的 Agent 驱动代码库需求文档生成工具</p>
+        </header>
+
+        <!-- 输入区域 -->
+        <section class="input-section">
+            <div class="input-card">
+                <label for="repo-path">仓库路径</label>
+                <div class="input-group">
+                    <input type="text" id="repo-path" placeholder="例如: C:\path\to\your\repo" />
+                    <button id="run-btn" class="btn-primary">
+                        <span class="btn-icon">▶</span>
+                        <span class="btn-text">运行 Agent</span>
+                    </button>
+                </div>
+                <p class="input-hint">输入本地 Git 仓库的绝对路径</p>
+            </div>
+        </section>
+
+        <!-- 工作流可视化 -->
+        <section class="workflow-section">
+            <h2>工作流状态</h2>
+            <div class="workflow-graph">
+                <div class="workflow-node" data-node="init">
+                    <div class="node-icon">📋</div>
+                    <div class="node-label">初始化</div>
+                    <div class="node-status"></div>
+                </div>
+                <div class="workflow-arrow">→</div>
+                <div class="workflow-node" data-node="generate_doc">
+                    <div class="node-icon">📝</div>
+                    <div class="node-label">生成文档</div>
+                    <div class="node-status"></div>
+                </div>
+                <div class="workflow-arrow">→</div>
+                <div class="workflow-node" data-node="check_completeness">
+                    <div class="node-icon">✅</div>
+                    <div class="node-label">完整性检查</div>
+                    <div class="node-status"></div>
+                </div>
+                <div class="workflow-arrow">→</div>
+                <div class="workflow-node" data-node="execute_tools">
+                    <div class="node-icon">🔧</div>
+                    <div class="node-label">执行工具</div>
+                    <div class="node-status"></div>
+                </div>
+                <div class="workflow-arrow">→</div>
+                <div class="workflow-node" data-node="save_output">
+                    <div class="node-icon">💾</div>
+                    <div class="node-label">保存输出</div>
+                    <div class="node-status"></div>
+                </div>
+            </div>
+            
+            <!-- 统计信息 -->
+            <div class="stats-bar">
+                <div class="stat-item">
+                    <span class="stat-label">迭代次数</span>
+                    <span class="stat-value" id="stat-iteration">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">置信度</span>
+                    <span class="stat-value" id="stat-confidence">0%</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">文档长度</span>
+                    <span class="stat-value" id="stat-doc-length">0</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">状态</span>
+                    <span class="stat-value status-badge" id="stat-status">就绪</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- 日志和文档预览 -->
+        <section class="output-section">
+            <div class="output-panels">
+                <!-- 实时日志 -->
+                <div class="panel log-panel">
+                    <div class="panel-header">
+                        <h3>📜 实时日志</h3>
+                        <button class="btn-small" id="clear-log">清空</button>
+                    </div>
+                    <div class="panel-content" id="log-container">
+                        <div class="log-placeholder">等待运行...</div>
+                    </div>
+                </div>
+
+                <!-- 文档预览 -->
+                <div class="panel doc-panel">
+                    <div class="panel-header">
+                        <h3>📄 文档预览</h3>
+                    </div>
+                    <div class="panel-content" id="doc-preview">
+                        <div class="doc-placeholder">文档将在此处显示...</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 缺失部分提示 -->
+        <section class="missing-section" id="missing-section" style="display: none;">
+            <h3>⚠️ 待补充内容</h3>
+            <ul id="missing-list"></ul>
+        </section>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
